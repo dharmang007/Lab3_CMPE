@@ -5,14 +5,7 @@ const axios = require('axios');
 const config = require('config');
 const Customer = require('../models/Customer');
 const Restaurant = require('../models/Restaurant');
-const createToken = (customer, secret, expiresIn) => {
 
-const { name, email } = customer;
-return jwt.sign({
-    name, email
-  }, secret, { expiresIn })
-
-}
 
 const resolvers = {
 
@@ -34,7 +27,8 @@ const resolvers = {
       if (customer) {
         throw new Error('User already exits');
       }
-
+      const salt = await bcrypt.genSalt(10);
+      password = await bcrypt.hash(password,salt);
       const newCustomer = await new Customer({
         name,
         email,
@@ -44,35 +38,93 @@ const resolvers = {
         cart
       }).save();
     
-      return { token: createToken(newCustomer, config.get('jwtSecretToken'), "1hr") };
+      return newCustomer;
+      
     },
 
-    signinCustomer : async (root, { email, password }, { Customer }) => {
+    createRestaurant: async (root, { name, email, password, contact, profileImg, cuisine}) => {
+  
+      const rest = await Restaurant.findOne({ email });
+      if (rest) {
+        throw new Error('Restaurant already exits');
+      }
+      const salt = await bcrypt.genSalt(10);
+      password = await bcrypt.hash(password,salt);
+      const newRest = await new Restaurant({
+        name,
+        email,
+        password,
+        contact,
+        profileImg,
+        cuisine
+      }).save();
+      return newRest;
+    },
+
+    signinCustomer : async (root, { email, password }) => {
       const customer= await Customer.findOne({ email });
 
       if (!customer) {
-        throw new Error('User Not Found');
+        return {error: "Customer Account does not Exists"}
       }
-
-      const checkPassword = await bcrypt.compare(password, customer.password);
+      console.log(customer)
+     const checkPassword = await bcrypt.compare(password, customer.password);
 
       if (!checkPassword) {
-        throw new Error('Invalid password');
+        return {error: "Invalid Password"}
       }
-      //return customer;
-      return { token: createToken(customer, config.get('jwtSecretToken'), "1hr") };
-
+      return customer;
+      
     },
 
-    setProfileIMG: async (root, { email, profileImg }, { Customer }) => {
+    signinRestaurant : async (root, { email, password }) => {
+      const rest = await Restaurant.findOne({ email });
+
+      if (!rest) {
+        return {error: "Restaurant Account does not Exists"}
+      }
+      console.log(rest)
+      
+      const checkPassword = await bcrypt.compare(password, rest.password);
+      if (!checkPassword) {
+        return {error: "Password Invalid"}
+      }
+      return rest;
+    },
+
+    setCustomerProfileIMG: async (root, { email, profileImg }, { Customer }) => {
       const customer = await Customer.findOneAndUpdate({ email }, { $set: { profileImg } }, { new: true });
       if (!customer) {
-        throw new Error('User Not Found');
+        return {error: "Customer Account does not Exists"}
       }
-
       return user;
+    },
+    setRestaurantProfileIMG: async (root, { email, profileImg }) => {
+      const rest = await Restaurant.findOneAndUpdate({ email }, { $set: { profileImg } }, { new: true });
+      if (!rest) {
+        return {error: "Restaurant Account does not Exists"}
+      }
+      return rest;
+    },
+    addMenuItem: async(root,{email,item,desc,price,sction}) => {
+      const rest = await Restaurant.findOne({email});
+      rest.menu.push({item,desc,price,section});
+      rest.save();
+      return rest.menu;
+    },
+    editCustomerProfile:async(root,{email,name,newEmail,password,contact})=>{
+      let customer = null;
+      if(newEmail){
+         customer = await Customer.findOneAndUpdate({email},{$set:{email:newEmail,name: name,password:password,contact: contact}},{new:true});
+      }
+      else{
+         customer = await Customer.findOneAndUpdate({email},{name: name,contact: contact},{new:true});
+      }
+      if(!customer){
+        return {error:"Error in editing"}
+      }
+      return customer
     }
-
   }
 };
 module.exports = resolvers;
