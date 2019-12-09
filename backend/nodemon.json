@@ -1,0 +1,7 @@
+{
+    "env" : {
+        "MongoUser": "dharmang007",
+        "Mongopassword": "Abcd007!"
+
+    }
+}
